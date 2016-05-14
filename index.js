@@ -112,9 +112,9 @@ class Route {
       }))
       .then(() => {
         if (errors.length > 1) {
-          return exports.rejects.request({ errors })
+          return exports.rejects.badRequest({ errors })
         } else if (errors.length === 1) {
-          return exports.rejects.request(errors[0])
+          return exports.rejects.badRequest(errors[0])
         }
         return runnable(params)
       })
@@ -157,7 +157,7 @@ class AbstractValidator {
   }
 
   validationError (message) {
-    return exports.rejects.request({
+    return exports.rejects.badRequest({
       error: 'ValidationError',
       field: this.field,
       message
@@ -246,7 +246,7 @@ var typeSymbol = Symbol('type')
 var types = {
   internal: 500,
   forbidden: 403,
-  request: 400,
+  badRequest: 400,
   notFound: 404
 }
 exports.rejects = {}
