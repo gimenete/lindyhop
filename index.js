@@ -1,20 +1,19 @@
 var express = require('express')
+var pync = require('pync')
+
+var middlewares = {}
+exports.middleware = (type, runnable) => {
+  middlewares[type] = runnable
+}
 
 class LindyHop {
   constructor (app) {
     this.app = app
+    this.middlewares = {}
   }
 
   router (path) {
     return new Router(this, this.app, path)
-  }
-
-  pagination (type, runnable) {
-
-  }
-
-  auth (type, runnable) {
-
   }
 }
 
@@ -59,14 +58,17 @@ class Route {
     this.path = path
     this.description = description
     this.validator = new Validator(lindy)
+    this._middlewares = []
   }
 
-  auth (type, optional) {
-
+  middleware (type, options) {
+    this._middlewares.push({ type, options })
+    return this
   }
 
-  paginate (type, fields) {
-
+  middlewares (...types) {
+    types.forEach((type) => this._middlewares.push({ type }))
+    return this
   }
 
   params (validator) {
@@ -79,37 +81,45 @@ class Route {
     this.router[method](this.path, (req, res, next) => {
       var params = {}
       var values
-      if (method === 'post') {
-        values = req.body
-      } else {
+      if (method === 'get' || method === 'delete') {
         values = req.query
+      } else {
+        values = req.body
       }
       var errors = []
-      Promise.all(this.validator.rules.map((rule) => {
-        var field = rule.field
-        return Promise.resolve()
-          .then(() => {
-            var value = values[field]
-            if (value == null) {
-              if (!rule.isOptional) {
-                return errors.push({ field, message: `'${field}' is mandatory`, error: 'ValidationError' })
-              } else if (rule.defaultValue) {
-                return rule.defaultValue
+      pync.series(this._middlewares, (middleware) => {
+        var { type, options } = middleware
+        var runnable = middlewares[type]
+        // TODO: if not runnable
+        return Promise.resolve().then(() => runnable(req, res, options, params))
+      })
+      .then(() => {
+        return Promise.all(this.validator.rules.map((rule) => {
+          var field = rule.field
+          return Promise.resolve()
+            .then(() => {
+              var value = values[field]
+              if (value == null) {
+                if (!rule.isOptional) {
+                  return errors.push({ field, message: `'${field}' is mandatory`, error: 'ValidationError' })
+                } else if (rule.defaultValue) {
+                  return rule.defaultValue
+                } else {
+                  return
+                }
               } else {
-                return
+                return Promise.resolve()
+                  .then(() => rule.validate(value))
+                  .catch((err) => errors.push(err))
               }
-            } else {
-              return Promise.resolve()
-                .then(() => rule.validate(value))
-                .catch((err) => errors.push(err))
-            }
-          })
-          .then((value) => {
-            if (!value) return
-            if (rule.asValue) field = rule.asValue
-            params[field] = value
-          })
-      }))
+            })
+            .then((value) => {
+              if (!value) return
+              if (rule.asValue) field = rule.asValue
+              params[field] = value
+            })
+        }))
+      })
       .then(() => {
         if (errors.length > 1) {
           return exports.rejects.badRequest({ errors })
@@ -187,6 +197,9 @@ class StringValidator extends AbstractValidator {
   }
 
   validate (value) {
+    if (typeof value !== 'string') {
+      return this.validationError(`'${this.field}' must be a string. Received '${value}'`)
+    }
     if (this.mustTrim) value = value.trim()
     if (this.isNotEmpty && value.length === 0) {
       return this.validationError(`'${this.field}' must not be empty. Received '${value}'`)
@@ -229,7 +242,7 @@ exports.hop = (app) => {
 
 exports.AbstractValidator = AbstractValidator
 
-exports.addValidator = (type, validator) => {
+exports.validator = (type, validator) => {
   Validator.prototype[type] = function (field, description) {
     var rule = new (Function.prototype.bind.apply(validator))
     rule.field = field
@@ -239,8 +252,8 @@ exports.addValidator = (type, validator) => {
   }
 }
 
-exports.addValidator('string', StringValidator)
-exports.addValidator('number', NumberValidator)
+exports.validator('string', StringValidator)
+exports.validator('number', NumberValidator)
 
 var typeSymbol = Symbol('type')
 var types = {

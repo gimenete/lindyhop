@@ -25,5 +25,8 @@
   },
   "peerDependencies": {
     "express": "^4.13.4"
+  },
+  "dependencies": {
+    "pync": "^1.0.1"
   }
 }

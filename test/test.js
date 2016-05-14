@@ -10,7 +10,7 @@ app.use(bodyParser.urlencoded({ extended: true }))
 var lindyhop = require('../')
 var { AbstractValidator, rejects } = lindyhop
 
-class ObjectValidator extends AbstractValidator {
+class EntityValidator extends AbstractValidator {
   model (clazz) {
     this.clazz = clazz
     return this
@@ -27,7 +27,11 @@ class ObjectValidator extends AbstractValidator {
   }
 }
 
-lindyhop.addValidator('object', ObjectValidator)
+lindyhop.validator('entity', EntityValidator)
+lindyhop.middleware('pagination', (req, res, options, params) => {
+  params.offset = +req.query.offset || 0
+  params.limit = 100
+})
 
 var lindy = lindyhop.hop(app)
 var users = lindy.router('/users')
@@ -50,7 +54,7 @@ users.post('/foo', 'This is what this endpoint does')
       .min(0)
       .max(100)
     validate
-      .object('userId', 'The id of the user for something')
+      .entity('userId', 'The id of the user for something')
       .model(Users)
       .as('user')
   })
@@ -59,6 +63,7 @@ users.post('/foo', 'This is what this endpoint does')
   })
 
 users.get('/foo', 'This is what this endpoint does')
+  .middleware('pagination')
   .params((validate) => {
     validate
       .string('type', 'The type of foo you want to get')
@@ -76,7 +81,7 @@ users.get('/foo', 'This is what this endpoint does')
   })
 
 describe('Test', () => {
-  it('tests a GET with success', (done) => {
+  it('tests a GET with success and middleware', (done) => {
     request(app)
       .get('/users/foo')
       .query({
@@ -85,7 +90,7 @@ describe('Test', () => {
       .end((err, res) => {
         assert.ifError(err)
         assert.equal(res.statusCode, 200)
-        assert.deepEqual(res.body, {'type': 'FOOBAR', 'foo': 'bar'})
+        assert.deepEqual(res.body, {'type': 'FOOBAR', 'foo': 'bar', limit: 100, offset: 0})
         done()
       })
   })
