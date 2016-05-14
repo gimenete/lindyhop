@@ -4,7 +4,8 @@
   "description": "Express router with doc generation, validation, promises support and boilerplate stuff solved",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "coverage": "nyc --reporter=lcov npm test && nyc report"
   },
   "repository": {
     "type": "git",

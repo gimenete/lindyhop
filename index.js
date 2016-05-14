@@ -23,7 +23,7 @@ class Router {
     this.app = app
     this.router = express.Router()
     this.app.use(path, this.router)
-    this.validator = new Validator(lindy)
+    this.lindy = lindy
   }
 
   get (path, desc) {
@@ -47,10 +47,18 @@ class Router {
   }
 
   _method (method, path, description) {
+    return new Route(this.lindy, this.router, method, path, description)
+  }
+
+}
+
+class Route {
+  constructor (lindy, router, method, path, description) {
+    this.router = router
     this.method = method
     this.path = path
     this.description = description
-    return this
+    this.validator = new Validator(lindy)
   }
 
   auth (type, optional) {
@@ -84,9 +92,9 @@ class Router {
             var value = values[field]
             if (value == null) {
               if (!rule.isOptional) {
-                return errors.push({ field, message: `${field} is mandatory` })
+                return errors.push({ field, message: `'${field}' is mandatory`, error: 'ValidationError' })
               } else if (rule.defaultValue) {
-                value = rule.defaultValue
+                return rule.defaultValue
               } else {
                 return
               }
@@ -106,14 +114,13 @@ class Router {
         if (errors.length > 1) {
           return exports.rejects.request({ errors })
         } else if (errors.length === 1) {
-          return errors[0]
+          return exports.rejects.request(errors[0])
         }
         return runnable(params)
       })
       .then((data) => res.json(data))
       .catch((err) => {
         var statusCode = err[typeSymbol] || 500
-        console.log('err', err)
         if (err instanceof Error) {
           console.error(err.stack)
           err = {
@@ -123,7 +130,6 @@ class Router {
         }
         res.status(statusCode).json(err)
       })
-      .catch((err) => console.log('err', err))
     })
   }
 }
@@ -135,6 +141,11 @@ class Validator {
 }
 
 class AbstractValidator {
+  default (def) {
+    this.defaultValue = def
+    return this
+  }
+
   as (as) {
     this.asValue = as
     return this
@@ -144,11 +155,19 @@ class AbstractValidator {
     this.isOptional = true
     return this
   }
+
+  validationError (message) {
+    return exports.rejects.request({
+      error: 'ValidationError',
+      field: this.field,
+      message
+    })
+  }
 }
 
 class StringValidator extends AbstractValidator {
-  nonEmpty () {
-    this.isNonEmpty = true
+  notEmpty () {
+    this.isNotEmpty = true
     return this
   }
 
@@ -169,8 +188,8 @@ class StringValidator extends AbstractValidator {
 
   validate (value) {
     if (this.mustTrim) value = value.trim()
-    if (this.isNonEmpty && value.length === 0) {
-      return exports.rejects.request({ field: this.field, message: `${this.field} must not be empty. Received '${value}'` })
+    if (this.isNotEmpty && value.length === 0) {
+      return this.validationError(`'${this.field}' must not be empty. Received '${value}'`)
     }
     if (this.mustLowerCase) value = value.toLowerCase()
     if (this.mustUpperCase) value = value.toUpperCase()
@@ -190,12 +209,15 @@ class NumberValidator extends AbstractValidator {
   }
 
   validate (value) {
-    value = +value
-    if (isNaN(value)) {
-      return exports.rejects.request({ field: this.field, message: `${this.field} must be a number. Received '${value}'` })
+    var num = +value
+    if (isNaN(num)) {
+      return this.validationError(`'${this.field}' must be a number. Received '${value}'`)
     }
-    if (this.minValue && value < this.minValue) {
-      return exports.rejects.request({ field: this.field, message: `${this.field} must be a number. Received '${value}'` })
+    if (this.minValue != null && num < this.minValue) {
+      return this.validationError(`'${this.field}' must be greater or equal to ${this.minValue}. Received '${value}'`)
+    }
+    if (this.maxValue != null && num > this.maxValue) {
+      return this.validationError(`'${this.field}' must be lower or equal to ${this.maxValue}. Received '${value}'`)
     }
     return value
   }
