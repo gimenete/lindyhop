@@ -80,12 +80,6 @@ class Route {
     var method = this.method.toLowerCase()
     this.router[method](this.path, (req, res, next) => {
       var params = {}
-      var values
-      if (method === 'get' || method === 'delete') {
-        values = req.query
-      } else {
-        values = req.body
-      }
       var errors = []
       pync.series(this._middlewares, (middleware) => {
         var { type, options } = middleware
@@ -98,6 +92,12 @@ class Route {
           var field = rule.field
           return Promise.resolve()
             .then(() => {
+              var values = method === 'get' || method === 'delete' ? req.query : req.body
+              if (rule.inValue) {
+                if (rule.inValue === 'query') values = req.query
+                else if (rule.inValue === 'header') values = req.headers
+                else if (rule.inValue === 'path') values = req.params
+              }
               var value = values[field]
               if (value == null) {
                 if (!rule.isOptional) {
@@ -194,6 +194,15 @@ class StringValidator extends AbstractValidator {
 
   upperCase () {
     this.mustUpperCase = true
+    return this
+  }
+
+  in (inValue) {
+    const values = ['query', 'header', 'path', 'formData']
+    if (values.indexOf(inValue) === -1) {
+      throw new Error(`Invalid 'in' value '${inValue}'. Accepted values: ${values}`)
+    }
+    this.inValue = inValue
     return this
   }
 

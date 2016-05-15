@@ -1,6 +1,6 @@
 {
   "name": "lindyhop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Express router with doc generation, validation, promises support and boilerplate stuff solved",
   "main": "index.js",
   "scripts": {

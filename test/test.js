@@ -120,6 +120,23 @@ users.get('/missingMiddleware', 'An endpoint with bad configuration')
   .middlewares('unknown')
   .run((params) => params)
 
+users.get('/inline/:foo', 'An endpoint with an inlined value')
+  .params((validate) => {
+    validate
+      .string('foo', 'Some inlined value')
+      .in('path')
+  })
+  .run((params) => params)
+
+users.get('/header', 'An endpoint with a value taken from the headers')
+  .params((validate) => {
+    validate
+      .string('x-foo', 'Some custom header')
+      .in('header')
+      .as('foo')
+  })
+  .run((params) => params)
+
 describe('Test', () => {
   it('tests a GET with success and middleware', (done) => {
     request(app)
@@ -417,6 +434,41 @@ describe('Test', () => {
         assert.ifError(err)
         assert.equal(res.statusCode, 500)
         assert.deepEqual(res.body, { error: 'InternalError', message: 'Middleware not found \'unknown\'' })
+        done()
+      })
+  })
+
+  it('tests an invalid in() parameter', () => {
+    assert.throws(() => {
+      users.get('/', 'An endpoint with bad configuration')
+        .params((validate) => {
+          validate
+            .string('foo', 'Some parameter')
+            .in('foo')
+        })
+        .run((params) => params)
+    })
+  })
+
+  it('tests an inlined parameter', (done) => {
+    request(app)
+      .get('/users/inline/bar')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, { foo: 'bar' })
+        done()
+      })
+  })
+
+  it('tests a header value', (done) => {
+    request(app)
+      .get('/users/header')
+      .set('x-foo', 'bar')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, { foo: 'bar' })
         done()
       })
   })

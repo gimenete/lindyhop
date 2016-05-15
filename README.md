@@ -11,7 +11,7 @@ var lindy = lindyhop.hop(app)
 
 var users = lindy.router('/users')
 
-users.get('/foo', 'This is what this endpoint does')
+users.get('/:userId/foo', 'This is what this endpoint does')
   .middleware('auth', { rol: 'admin' })
   .middleware('pagination')
   .params((validate) => {
@@ -28,13 +28,28 @@ users.get('/foo', 'This is what this endpoint does')
       .object('userId', 'The id of the user for something')
       .model(Users)
       .as('user')
+      .in('path')
   })
   .run((params) => {
     // your business logic that returns data or a promise
   })
 ```
 
-This library will also support other stuff like: middlewares, pagination and authentication
+## Installation
+
+```bash
+npm install lindyhop --save
+```
+
+## Configuring an express app
+
+```javascript
+var express = require('express')
+var lindyhop = require('lindyhop')
+
+var app = express()
+var lindy = lindyhop.hop(app)
+```
 
 ## Routers
 
@@ -93,6 +108,13 @@ There are two built-in validators: `string` and `number` with the following meth
 - `.max(maxValue)` will return an error if the value passed is higher than that maximum value
 
 Additionally any validator has a `.as()` and `.optional()` method. With `.as()` you can rename the parameter and with `.optional()` you will make it optional, so no error will be returned if the parameter is not in the request.
+
+By default any `GET` or `DELETE` request gets the parameters from the query string, and in any other case it gets the values from the body. If you want to override this behavior you can specify a different source with `.in()` for each parameter.
+
+- `.in('query')` will look for the parameter in the query string
+- `.in('header')` will look for the parameter in a request header
+- `.in('path')` will look for the parameter in the URL (such as `/users/:userId`)
+- `.in('formData')` will look for the parameter in a request body
 
 ## Custom validators
 
