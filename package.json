@@ -1,7 +1,7 @@
 {
   "name": "lindyhop",
-  "version": "0.1.1",
-  "description": "Express router with doc generation, validation, promises support and boilerplate stuff solved",
+  "version": "0.1.2",
+  "description": "Express router with doc generation, validation and improved middleware support",
   "main": "index.js",
   "scripts": {
     "test": "mocha",

@@ -42,7 +42,21 @@ lindyhop.middleware('promise', (req, res, options, params) => {
   })
 })
 
-var lindy = lindyhop.hop(app)
+var lindy = lindyhop.hop(app, {
+  'title': 'Swagger Sample App',
+  'description': 'This is a sample server Petstore server.',
+  'termsOfService': 'http://swagger.io/terms/',
+  'contact': {
+    'name': 'API Support',
+    'url': 'http://www.swagger.io/support',
+    'email': 'support@swagger.io'
+  },
+  'license': {
+    'name': 'Apache 2.0',
+    'url': 'http://www.apache.org/licenses/LICENSE-2.0.html'
+  },
+  'version': '1.0.1'
+})
 var users = lindy.router('/users')
 var Users = {
   findById (id) {
@@ -471,5 +485,11 @@ describe('Test', () => {
         assert.deepEqual(res.body, { foo: 'bar' })
         done()
       })
+  })
+
+  it('tests docs', () => {
+    var docs = lindy.docs()
+    assert.ok(docs)
+    // require('fs').writeFileSync('api.json', JSON.stringify(docs, null, 2))
   })
 })

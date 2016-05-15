@@ -7,48 +7,69 @@ exports.middleware = (type, runnable) => {
 }
 
 class LindyHop {
-  constructor (app) {
+  constructor (app, info) {
     this.app = app
+    this.info = info
     this.middlewares = {}
+    this.routers = []
   }
 
   router (path) {
-    return new Router(this, this.app, path)
+    var router = new Router(this, this.app, path)
+    this.routers.push(router)
+    return router
+  }
+
+  docs () {
+    var docs = {
+      swagger: '2.0',
+      info: Object.assign({}, this.info),
+      paths: {}
+    }
+    this.routers.forEach((router) => router.docs(docs))
+    return docs
   }
 }
 
 class Router {
   constructor (lindy, app, path) {
+    this.lindy = lindy
     this.app = app
+    this.path = path
     this.router = express.Router()
     this.app.use(path, this.router)
-    this.lindy = lindy
+    this.routes = []
   }
 
   get (path, desc) {
-    return this._method('GET', path, desc)
+    return this._method('get', path, desc)
   }
 
   post (path, desc) {
-    return this._method('POST', path, desc)
+    return this._method('post', path, desc)
   }
 
   put (path, desc) {
-    return this._method('PUT', path, desc)
+    return this._method('put', path, desc)
   }
 
   delete (path, desc) {
-    return this._method('DELETE', path, desc)
+    return this._method('delete', path, desc)
   }
 
   patch (path, desc) {
-    return this._method('PATCH', path, desc)
+    return this._method('patch', path, desc)
   }
 
   _method (method, path, description) {
-    return new Route(this.lindy, this.router, method, path, description)
+    var route = new Route(this.lindy, this.router, method, path, description)
+    this.routes.push(route)
+    return route
   }
 
+  docs (docs) {
+    this.routes.forEach((route) => route.docs(docs, this.path))
+  }
 }
 
 class Route {
@@ -77,7 +98,7 @@ class Route {
   }
 
   run (runnable) {
-    var method = this.method.toLowerCase()
+    var method = this.method
     this.router[method](this.path, (req, res, next) => {
       var params = {}
       var errors = []
@@ -144,6 +165,36 @@ class Route {
       })
     })
   }
+
+  docs (docs, basePath) {
+    var route = {
+      summary: this.description,
+      produces: ['application/json'],
+      responses: {
+        '200': {}
+      }
+    }
+
+    var defInValue = this.method === 'get' || this.method === 'delete' ? 'query' : 'formData'
+    route.parameters = this.validator.rules.map((rule) => {
+      return {
+        name: rule.field,
+        type: rule.type || 'string',
+        in: rule.inValue || defInValue,
+        required: !rule.isOptional,
+        description: rule.description
+      }
+      // TODO: maximum, minimum
+    })
+
+    var fullPath = basePath + this.path
+    var path = docs.paths[fullPath]
+    if (!path) {
+      path = docs.paths[fullPath] = {}
+    }
+    path[this.method] = route
+    route.operationId = fullPath.substring(1).replace(/\//g, '__') + '_' + this.method
+  }
 }
 
 class Validator {
@@ -177,6 +228,11 @@ class AbstractValidator {
 }
 
 class StringValidator extends AbstractValidator {
+  constructor () {
+    super()
+    this.type = 'string'
+  }
+
   notEmpty () {
     this.isNotEmpty = true
     return this
@@ -221,6 +277,11 @@ class StringValidator extends AbstractValidator {
 }
 
 class NumberValidator extends AbstractValidator {
+  constructor () {
+    super()
+    this.type = 'number'
+  }
+
   min (value) {
     this.minValue = value
     return this
@@ -246,8 +307,8 @@ class NumberValidator extends AbstractValidator {
   }
 }
 
-exports.hop = (app) => {
-  return new LindyHop(app)
+exports.hop = (app, info) => {
+  return new LindyHop(app, info)
 }
 
 exports.AbstractValidator = AbstractValidator

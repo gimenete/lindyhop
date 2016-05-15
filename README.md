@@ -286,4 +286,28 @@ Validation errors contain an array of `errors`, each one containing a `field` wi
 
 ## Documentation
 
-Work in progress
+Calling `lindy.docs()` you will get a valid [Swagger API description document](http://swagger.io/specification/#infoObject). You can save the result in a file and use [swagger-codegen](https://github.com/swagger-api/swagger-codegen) to generate documentation or even generate an SDK for your API. Here's for example how you can generate static docs for your API:
+
+```
+swagger-codegen generate -i api.json -l html -o docs/
+```
+
+When configuring your express app you can pass an optional `info` object for swagger. Example
+
+```javascript
+var lindy = lindyhop.hop(app, {
+  'title': 'Swagger Sample App',
+  'description': 'This is a sample server Petstore server.',
+  'termsOfService': 'http://swagger.io/terms/',
+  'contact': {
+    'name': 'API Support',
+    'url': 'http://www.swagger.io/support',
+    'email': 'support@swagger.io'
+  },
+  'license': {
+    'name': 'Apache 2.0',
+    'url': 'http://www.apache.org/licenses/LICENSE-2.0.html'
+  },
+  'version': '1.0.1'
+})
+```
