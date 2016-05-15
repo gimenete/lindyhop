@@ -37,7 +37,7 @@ class Router {
     return this._method('PUT', path, desc)
   }
 
-  del (path, desc) {
+  delete (path, desc) {
     return this._method('DELETE', path, desc)
   }
 
@@ -89,9 +89,9 @@ class Route {
       var errors = []
       pync.series(this._middlewares, (middleware) => {
         var { type, options } = middleware
-        var runnable = middlewares[type]
-        // TODO: if not runnable
-        return Promise.resolve().then(() => runnable(req, res, options, params))
+        var func = middlewares[type]
+        if (!func) return exports.rejects.internalError(`Middleware not found '${type}'`)
+        return Promise.resolve().then(() => func(req, res, options, params))
       })
       .then(() => {
         return Promise.all(this.validator.rules.map((rule) => {
@@ -101,7 +101,7 @@ class Route {
               var value = values[field]
               if (value == null) {
                 if (!rule.isOptional) {
-                  return errors.push({ field, message: `'${field}' is mandatory`, error: 'ValidationError' })
+                  return errors.push({ field, message: `'${field}' is mandatory` })
                 } else if (rule.defaultValue) {
                   return rule.defaultValue
                 } else {
@@ -121,10 +121,12 @@ class Route {
         }))
       })
       .then(() => {
-        if (errors.length > 1) {
-          return exports.rejects.badRequest({ errors })
-        } else if (errors.length === 1) {
-          return exports.rejects.badRequest(errors[0])
+        if (errors.length > 0) {
+          return exports.rejects.badRequest({
+            error: 'ValidationError',
+            message: 'Bad request. Check the errors',
+            errors
+          })
         }
         return runnable(params)
       })
@@ -168,7 +170,6 @@ class AbstractValidator {
 
   validationError (message) {
     return exports.rejects.badRequest({
-      error: 'ValidationError',
       field: this.field,
       message
     })
@@ -257,7 +258,7 @@ exports.validator('number', NumberValidator)
 
 var typeSymbol = Symbol('type')
 var types = {
-  internal: 500,
+  internalError: 500,
   forbidden: 403,
   badRequest: 400,
   notFound: 404
@@ -266,7 +267,14 @@ exports.rejects = {}
 Object.keys(types).forEach((type) => {
   exports.rejects[type] = function (value, message) {
     if (typeof value === 'string') {
-      value = { error: value, message }
+      if (message) {
+        value = { error: value, message }
+      } else {
+        value = {
+          error: type.substring(0, 1).toUpperCase() + type.substring(1),
+          message: value
+        }
+      }
     }
     value[typeSymbol] = types[type]
     return Promise.reject(value)

@@ -6,11 +6,12 @@ var assert = require('assert')
 
 var app = express()
 app.use(bodyParser.urlencoded({ extended: true }))
+app.use(bodyParser.json())
 
 var lindyhop = require('../')
-var { AbstractValidator, rejects } = lindyhop
+var { rejects } = lindyhop
 
-class EntityValidator extends AbstractValidator {
+class EntityValidator extends lindyhop.AbstractValidator {
   model (clazz) {
     this.clazz = clazz
     return this
@@ -30,7 +31,15 @@ class EntityValidator extends AbstractValidator {
 lindyhop.validator('entity', EntityValidator)
 lindyhop.middleware('pagination', (req, res, options, params) => {
   params.offset = +req.query.offset || 0
-  params.limit = 100
+  params.limit = (options && options.limit) || 50
+})
+lindyhop.middleware('promise', (req, res, options, params) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      params.future = true
+      resolve()
+    }, 10)
+  })
 })
 
 var lindy = lindyhop.hop(app)
@@ -63,7 +72,7 @@ users.post('/foo', 'This is what this endpoint does')
   })
 
 users.get('/foo', 'This is what this endpoint does')
-  .middleware('pagination')
+  .middleware('pagination', { limit: 100 })
   .params((validate) => {
     validate
       .string('type', 'The type of foo you want to get')
@@ -79,6 +88,37 @@ users.get('/foo', 'This is what this endpoint does')
   .run((params) => {
     return params
   })
+
+users.get('/errorString', 'This endpoint rejects with a string')
+  .run((params) => rejects.internalError('myErrorString'))
+
+users.get('/errorMessage', 'This endpoint rejects with a string and a message')
+  .run((params) => rejects.internalError('myErrorString', 'My message'))
+
+users.get('/errorObject', 'This endpoint rejects with an error object')
+  .run((params) => {
+    throw new Error('myError')
+  })
+
+users.get('/errorPromise', 'This endpoint rejects with an error object')
+  .run((params) => Promise.reject({ status: 'A regular rejected promise' }))
+
+users.delete('/delete', 'A DELETE endpoint')
+  .run((params) => params)
+
+users.put('/put', 'A PUT endpoint')
+  .run((params) => params)
+
+users.patch('/patch', 'A PATCH endpoint')
+  .run((params) => params)
+
+users.get('/middlewares', 'An endpoint with multiple middlewares')
+  .middlewares('pagination', 'promise')
+  .run((params) => params)
+
+users.get('/missingMiddleware', 'An endpoint with bad configuration')
+  .middlewares('unknown')
+  .run((params) => params)
 
 describe('Test', () => {
   it('tests a GET with success and middleware', (done) => {
@@ -124,8 +164,34 @@ describe('Test', () => {
         assert.equal(res.statusCode, 400)
         assert.deepEqual(res.body, {
           error: 'ValidationError',
-          field: 'userId',
-          message: '\'userId\' is mandatory'
+          message: 'Bad request. Check the errors',
+          errors: [{
+            field: 'userId',
+            message: '\'userId\' is mandatory'
+          }]
+        })
+        done()
+      })
+  })
+
+  it('tests an invalid string', (done) => {
+    request(app)
+      .post('/users/foo')
+      .send({
+        type: 100,
+        bar: '100',
+        userId: '123'
+      })
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 400)
+        assert.deepEqual(res.body, {
+          error: 'ValidationError',
+          message: 'Bad request. Check the errors',
+          errors: [{
+            field: 'type',
+            message: '\'type\' must be a string. Received \'100\''
+          }]
         })
         done()
       })
@@ -145,8 +211,11 @@ describe('Test', () => {
         assert.equal(res.statusCode, 400)
         assert.deepEqual(res.body, {
           error: 'ValidationError',
-          field: 'bar',
-          message: '\'bar\' must be a number. Received \'not-a-number\''
+          message: 'Bad request. Check the errors',
+          errors: [{
+            field: 'bar',
+            message: '\'bar\' must be a number. Received \'not-a-number\''
+          }]
         })
         done()
       })
@@ -166,8 +235,11 @@ describe('Test', () => {
         assert.equal(res.statusCode, 400)
         assert.deepEqual(res.body, {
           error: 'ValidationError',
-          field: 'bar',
-          message: '\'bar\' must be greater or equal to 0. Received \'-100\''
+          message: 'Bad request. Check the errors',
+          errors: [{
+            field: 'bar',
+            message: '\'bar\' must be greater or equal to 0. Received \'-100\''
+          }]
         })
         done()
       })
@@ -187,8 +259,11 @@ describe('Test', () => {
         assert.equal(res.statusCode, 400)
         assert.deepEqual(res.body, {
           error: 'ValidationError',
-          field: 'bar',
-          message: '\'bar\' must be lower or equal to 100. Received \'200\''
+          message: 'Bad request. Check the errors',
+          errors: [{
+            field: 'bar',
+            message: '\'bar\' must be lower or equal to 100. Received \'200\''
+          }]
         })
         done()
       })
@@ -208,8 +283,11 @@ describe('Test', () => {
         assert.equal(res.statusCode, 400)
         assert.deepEqual(res.body, {
           error: 'ValidationError',
-          field: 'type',
-          message: '\'type\' must not be empty. Received \'\''
+          message: 'Bad request. Check the errors',
+          errors: [{
+            field: 'type',
+            message: '\'type\' must not be empty. Received \'\''
+          }]
         })
         done()
       })
@@ -228,18 +306,117 @@ describe('Test', () => {
         assert.ifError(err)
         assert.equal(res.statusCode, 400)
         assert.deepEqual(res.body, {
+          error: 'ValidationError',
+          message: 'Bad request. Check the errors',
           errors: [
             {
-              error: 'ValidationError',
               field: 'bar',
               message: '\'bar\' must be a number. Received \'not-a-number\''
             },
             {
-              error: 'ValidationError',
               field: 'userId',
               message: 'User with id \'\' not found'
             }
           ]})
+        done()
+      })
+  })
+
+  it('test an error string', (done) => {
+    request(app)
+      .get('/users/errorString')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 500)
+        assert.deepEqual(res.body, { error: 'InternalError', message: 'myErrorString' })
+        done()
+      })
+  })
+
+  it('test an error message', (done) => {
+    request(app)
+      .get('/users/errorMessage')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 500)
+        assert.deepEqual(res.body, { error: 'myErrorString', message: 'My message' })
+        done()
+      })
+  })
+
+  it('test an error string', (done) => {
+    request(app)
+      .get('/users/errorObject')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 500)
+        assert.deepEqual(res.body, { error: 'InternalError', message: 'myError' })
+        done()
+      })
+  })
+
+  it('test a regular rejected promise', (done) => {
+    request(app)
+      .get('/users/errorPromise')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 500)
+        assert.deepEqual(res.body, { status: 'A regular rejected promise' })
+        done()
+      })
+  })
+
+  it('tests a DELETE endpoint', (done) => {
+    request(app)
+      .delete('/users/delete')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, {})
+        done()
+      })
+  })
+
+  it('tests a PUT endpoint', (done) => {
+    request(app)
+      .put('/users/put')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, {})
+        done()
+      })
+  })
+
+  it('tests a PATCH endpoint', (done) => {
+    request(app)
+      .patch('/users/patch')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, {})
+        done()
+      })
+  })
+
+  it('tests multiple middlewares', (done) => {
+    request(app)
+      .get('/users/middlewares')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, { 'future': true, 'limit': 50, 'offset': 0 })
+        done()
+      })
+  })
+
+  it('tests a missing middleware', (done) => {
+    request(app)
+      .get('/users/missingMiddleware')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 500)
+        assert.deepEqual(res.body, { error: 'InternalError', message: 'Middleware not found \'unknown\'' })
         done()
       })
   })
