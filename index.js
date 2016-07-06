@@ -6,6 +6,24 @@ exports.middleware = (type, runnable) => {
   middlewares[type] = runnable
 }
 
+var outputs = {}
+var mimes = {}
+exports.output = (type, mime, runnable) => {
+  outputs[type] = runnable
+  mimes[type] = mime
+}
+
+exports.output('json', 'application/json', (req, res, data, options) => {
+  res.json(data)
+})
+
+exports.output('html', 'text/html', (req, res, data, options) => {
+  if (res.statusCode >= 400) {
+    options = String(res.statusCode)
+  }
+  res.render(options, data)
+})
+
 class LindyHop {
   constructor (app, info) {
     this.app = app
@@ -80,6 +98,7 @@ class Route {
     this.description = description
     this.validator = new Validator(lindy)
     this._middlewares = []
+    this.output = 'json'
   }
 
   middleware (type, options) {
@@ -94,6 +113,12 @@ class Route {
 
   params (validator) {
     validator(this.validator)
+    return this
+  }
+
+  outputs (output, options) {
+    this.output = output
+    this.outputOptions = options
     return this
   }
 
@@ -151,7 +176,11 @@ class Route {
         }
         return runnable(params)
       })
-      .then((data) => res.json(data))
+      .then((data) => {
+        var runner = outputs[this.output]
+        if (!runner) return exports.rejects.internalError(`Output serializer not found '${this.output}'`)
+        runner(req, res, data, this.outputOptions)
+      })
       .catch((err) => {
         var statusCode = err[typeSymbol] || 500
         if (err instanceof Error) {
@@ -161,7 +190,10 @@ class Route {
             message: err.message
           }
         }
-        res.status(statusCode).json(err)
+        res.status(statusCode)
+        var runner = outputs[this.output]
+        if (!runner) return res.json(err)
+        runner(req, res, err, { err })
       })
     })
   }
@@ -169,7 +201,7 @@ class Route {
   docs (docs, basePath) {
     var route = {
       summary: this.description,
-      produces: ['application/json'],
+      produces: [mimes[this.output]],
       responses: {
         '200': {}
       }
@@ -179,7 +211,7 @@ class Route {
     route.parameters = this.validator.rules.map((rule) => {
       return {
         name: rule.field,
-        type: rule.type || 'string',
+        type: rule.type,
         in: rule.inValue || defInValue,
         required: !rule.isOptional,
         description: rule.description
@@ -193,7 +225,7 @@ class Route {
       path = docs.paths[fullPath] = {}
     }
     path[this.method] = route
-    route.operationId = fullPath.substring(1).replace(/\//g, '__') + '_' + this.method
+    route.operationId = fullPath.replace(/\//g)
   }
 }
 
@@ -228,11 +260,6 @@ class AbstractValidator {
 }
 
 class StringValidator extends AbstractValidator {
-  constructor () {
-    super()
-    this.type = 'string'
-  }
-
   notEmpty () {
     this.isNotEmpty = true
     return this
@@ -277,11 +304,6 @@ class StringValidator extends AbstractValidator {
 }
 
 class NumberValidator extends AbstractValidator {
-  constructor () {
-    super()
-    this.type = 'number'
-  }
-
   min (value) {
     this.minValue = value
     return this
@@ -316,6 +338,7 @@ exports.AbstractValidator = AbstractValidator
 exports.validator = (type, validator) => {
   Validator.prototype[type] = function (field, description) {
     var rule = new (Function.prototype.bind.apply(validator))
+    rule.type = type
     rule.field = field
     rule.description = description
     this.rules.push(rule)
