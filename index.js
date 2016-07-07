@@ -155,7 +155,14 @@ class Route {
                 }
               } else {
                 return Promise.resolve()
-                  .then(() => rule.validate(value))
+                  .then(() => {
+                    if (!rule.isArray) {
+                      return rule.validate(value)
+                    } else {
+                      if (!Array.isArray(value)) value = [value]
+                      return Promise.all(value.map((val) => rule.validate(val)))
+                    }
+                  })
                   .catch((err) => errors.push(err))
               }
             })
@@ -248,6 +255,11 @@ class AbstractValidator {
 
   optional () {
     this.isOptional = true
+    return this
+  }
+
+  array () {
+    this.isArray = true
     return this
   }
 

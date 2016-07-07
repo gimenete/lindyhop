@@ -3,10 +3,13 @@ var express = require('express')
 var bodyParser = require('body-parser')
 var request = require('supertest')
 var assert = require('assert')
+var path = require('path')
 
 var app = express()
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(bodyParser.json())
+app.set('view engine', 'pug')
+app.set('views', path.join(__dirname, 'views'))
 
 var lindyhop = require('../')
 var { rejects } = lindyhop
@@ -101,6 +104,22 @@ users.get('/foo', 'This is what this endpoint does')
   })
   .run((params) => {
     return params
+  })
+
+users.get('/array', 'This is what this endpoint does')
+  .params((validate) => {
+    validate
+      .string('type', 'The type of foo you want to get')
+      .array()
+  })
+  .run((params) => {
+    return params
+  })
+
+users.get('/html', 'This is what this endpoint does')
+  .outputs('html', 'index')
+  .run((params) => {
+    return { message: 'Hello world' }
   })
 
 users.get('/errorString', 'This endpoint rejects with a string')
@@ -483,6 +502,45 @@ describe('Test', () => {
         assert.ifError(err)
         assert.equal(res.statusCode, 200)
         assert.deepEqual(res.body, { foo: 'bar' })
+        done()
+      })
+  })
+
+  it('tests an array value', (done) => {
+    request(app)
+      .get('/users/array')
+      .query({
+        type: ['foo', 'bar']
+      })
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, { type: ['foo', 'bar'] })
+        done()
+      })
+  })
+
+  it('tests an array value but sending only a single value', (done) => {
+    request(app)
+      .get('/users/array')
+      .query({
+        type: 'foo'
+      })
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.deepEqual(res.body, { type: ['foo'] })
+        done()
+      })
+  })
+
+  it('tests HTML output', (done) => {
+    request(app)
+      .get('/users/html')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 200)
+        assert.equal(res.text, '<h1>Hello world</h1>')
         done()
       })
   })

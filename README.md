@@ -107,7 +107,11 @@ There are two built-in validators: `string` and `number` with the following meth
 - `.min(minValue)` will return an error if the value passed is lower than that minimum value
 - `.max(maxValue)` will return an error if the value passed is higher than that maximum value
 
-Additionally any validator has a `.as()` and `.optional()` method. With `.as()` you can rename the parameter and with `.optional()` you will make it optional, so no error will be returned if the parameter is not in the request.
+Additionally any validator has these methods:
+
+- `.as()` allows you to rename the parameter
+- `.optional()` makes the parameter optional, so no error will be returned if the parameter is not in the request
+- `.array()` will accept a single value or multiple values for this parameter while returning always an array to you
 
 By default any `GET` or `DELETE` request gets the parameters from the query string, and in any other case it gets the values from the body. If you want to override this behavior you can specify a different source with `.in()` for each parameter.
 
@@ -194,6 +198,44 @@ users.get('/foo', 'This is what this endpoint does')
 ```
 
 You can optionally pass an options object to `middleware()` like this: `.middleware('pagination', someOptions)`. That object will be passed to the middleware function as third parameter.
+
+## HTML output
+
+By default JSON is always returned, but you can also render HTML this way:
+
+```javascript
+// app is your express app
+app.set('view engine', 'pug')
+app.set('views', path.join(__dirname, 'views'))
+
+users.get('/html', 'This is what this endpoint does')
+  .outputs('html', 'index')
+  .run((params) => {
+    return { message: 'Hello world' }
+  })
+```
+
+This endpoint will render the `index.pug` template passing `{ message: 'Hello world' }` as render options. So your template could contain:
+
+```
+h1= message
+```
+
+## Custom output serializers
+
+You can create custom serializers easily:
+
+```javascript
+lindyhop.output('pdf', 'application/pdf', (req, res, data, options) => {
+  if (options.err) {
+    // in case of error
+  } else {
+    // Use the response object (`res`) to return whatever you need.
+    // In `data` you have the data returned by the controller.
+    // `options` is the second (optional) argument passed to `.outputs('pdf', options)`
+  }
+})
+```
 
 ## Error responses
 
