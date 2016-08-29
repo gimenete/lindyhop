@@ -170,6 +170,12 @@ users.get('/header', 'An endpoint with a value taken from the headers')
   })
   .run((params) => params)
 
+users.get('/302', 'A redirect')
+  .run((params) => lindyhop.redirect('http://example.com'))
+
+users.get('/301', 'A permanent redirect')
+  .run((params) => lindyhop.redirect('http://example.com', true))
+
 describe('Test', () => {
   it('tests a GET with success and middleware', (done) => {
     request(app)
@@ -541,6 +547,28 @@ describe('Test', () => {
         assert.ifError(err)
         assert.equal(res.statusCode, 200)
         assert.equal(res.text, '<h1>Hello world</h1>')
+        done()
+      })
+  })
+
+  it('tests a redirect', (done) => {
+    request(app)
+      .get('/users/302')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 302)
+        assert.equal(res.headers.location, 'http://example.com')
+        done()
+      })
+  })
+
+  it('tests a redirect', (done) => {
+    request(app)
+      .get('/users/301')
+      .end((err, res) => {
+        assert.ifError(err)
+        assert.equal(res.statusCode, 301)
+        assert.equal(res.headers.location, 'http://example.com')
         done()
       })
   })

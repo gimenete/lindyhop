@@ -221,6 +221,24 @@ This endpoint will render the `index.pug` template passing `{ message: 'Hello wo
 h1= message
 ```
 
+## Redirects
+
+If you need to do an HTTP redirect you can do it with `lindyhop.redirect(url, [permanent])`
+
+```javascript
+router.get('/regular', 'A regular redirect')
+  .run((params) => {
+    if (something) return lindyhop.redirect('http://example.com') // regular redirect (302)
+    // else ...
+  })
+
+router.get('/permanent', 'A permanent redirect')
+  .run((params) => {
+    if (something) return lindyhop.redirect('http://example.com', true) // permanent redirect (301)
+    // else ...
+  })
+```
+
 ## Custom output serializers
 
 You can create custom serializers easily:

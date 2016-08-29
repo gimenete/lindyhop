@@ -1,6 +1,17 @@
 var express = require('express')
 var pync = require('pync')
 
+class Redirect {
+  constructor (url, permanent) {
+    this.url = url
+    this.permanent = permanent
+  }
+}
+
+exports.redirect = (url, permanent) => {
+  return new Redirect(url, permanent)
+}
+
 var middlewares = {}
 exports.middleware = (type, runnable) => {
   middlewares[type] = runnable
@@ -184,6 +195,9 @@ class Route {
         return runnable(params)
       })
       .then((data) => {
+        if (data instanceof Redirect) {
+          return res.redirect(data.permanent ? 301 : 302, data.url)
+        }
         var runner = outputs[this.output]
         if (!runner) return exports.rejects.internalError(`Output serializer not found '${this.output}'`)
         runner(req, res, data, this.outputOptions)
