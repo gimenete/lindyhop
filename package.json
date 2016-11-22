@@ -1,6 +1,6 @@
 {
   "name": "lindyhop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Express router with doc generation, validation and improved middleware support",
   "main": "index.js",
   "scripts": {

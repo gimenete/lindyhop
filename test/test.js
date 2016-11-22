@@ -83,6 +83,9 @@ users.post('/foo', 'This is what this endpoint does')
       .entity('userId', 'The id of the user for something')
       .model(Users)
       .as('user')
+    validate
+      .object('mixed')
+      .optional()
   })
   .run((params) => {
     return params
@@ -198,12 +201,15 @@ describe('Test', () => {
       .send({
         type: 'FooBar',
         bar: '100',
-        userId: '123'
+        userId: '123',
+        mixed: {
+          foo: 'bar'
+        }
       })
       .end((err, res) => {
         assert.ifError(err)
         assert.equal(res.statusCode, 200)
-        assert.deepEqual(res.body, {'type': 'foobar', 'bar': 100, 'user': {'_id': '123'}})
+        assert.deepEqual(res.body, {'type': 'foobar', 'bar': 100, 'user': {'_id': '123'}, 'mixed': { 'foo': 'bar' }})
         done()
       })
   })

@@ -355,6 +355,15 @@ class NumberValidator extends AbstractValidator {
   }
 }
 
+class ObjectValidator extends AbstractValidator {
+  validate (value) {
+    if (value !== Object(value) || Array.isArray(value)) {
+      return this.validationError(`'${this.field}' must be an object. Received '${value}'`)
+    }
+    return value
+  }
+}
+
 exports.hop = (app, info) => {
   return new LindyHop(app, info)
 }
@@ -374,12 +383,14 @@ exports.validator = (type, validator) => {
 
 exports.validator('string', StringValidator)
 exports.validator('number', NumberValidator)
+exports.validator('object', ObjectValidator)
 
 var typeSymbol = Symbol('type')
 var types = {
   internalError: 500,
   forbidden: 403,
   badRequest: 400,
+  unauthorized: 401,
   notFound: 404
 }
 exports.rejects = {}

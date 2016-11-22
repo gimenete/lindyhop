@@ -276,6 +276,7 @@ The available error types are:
 - `rejects.forbidden()`: will return a 403 status code
 - `rejects.badRequest()`: will return a 400 status code
 - `rejects.notFound()`: will return a 404 status code
+- `rejects.unauthorized()`: will return a 401 status code
 
 All these methods can be used with one or two arguments.
 
