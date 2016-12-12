@@ -30,7 +30,12 @@ exports.output('json', 'application/json', (req, res, data, options) => {
 
 exports.output('html', 'text/html', (req, res, data, options) => {
   if (res.statusCode >= 400) {
-    options = String(res.statusCode)
+    if (options.flash) {
+      req.flash('err', data.err.message || String(data.err))
+      return res.redirect(req.url)
+    } else {
+      options = String(res.statusCode)
+    }
   }
   res.render(options, data)
 })
@@ -203,6 +208,9 @@ class Route {
         runner(req, res, data, this.outputOptions)
       })
       .catch((err) => {
+        if (err instanceof Redirect) {
+          return res.redirect(err.permanent ? 301 : 302, err.url)
+        }
         var statusCode = err[typeSymbol] || 500
         if (err instanceof Error) {
           console.error(err.stack)
